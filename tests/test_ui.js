@@ -8,7 +8,8 @@ const sandbox = {
   setInterval() {}, setTimeout() {}, clearTimeout() {}, console
 };
 vm.createContext(sandbox);
-const source = fs.readFileSync(__dirname+'/app.js', 'utf8').replace(/^start\(\);$/m, '');
+const source = ['state','api','views','forms','app'].map(name =>
+  fs.readFileSync(__dirname+'/../static/js/'+name+'.js', 'utf8')).join('\n').replace(/^start\(\);$/m, '');
 vm.runInContext(source, sandbox);
 const run = code => vm.runInContext(code, sandbox);
 run(`me={id:1,name:'Админ',role:'admin'};state={project_role:'admin',metrics:{total:4,passed:1,failed:1,blocked:1,not_run:1},checks:[

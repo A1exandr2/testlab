@@ -5,7 +5,8 @@ import unittest
 from pathlib import Path
 
 import bcrypt
-import server
+from testlab import database, security, config
+from testlab.web import App
 
 
 class Browser:
@@ -14,7 +15,7 @@ class Browser:
         self.csrf = ''
 
     def call(self, path, data=None, token=True):
-        handler = server.App.__new__(server.App)
+        handler = App.__new__(App)
         handler.path = '/api/' + path
         handler.headers = {'Cookie': self.cookie, 'Host': '127.0.0.1:8765'}
         result = {}
@@ -39,19 +40,19 @@ class Browser:
         return self.call('register', {'name': name, 'email': email, 'password': 'User12345!'})
 
     def login_admin(self):
-        return self.call('login', {'email': server.DEFAULT_ADMIN_EMAIL, 'password': server.DEFAULT_ADMIN_PASSWORD})
+        return self.call('login', {'email': config.DEFAULT_ADMIN_EMAIL, 'password': config.DEFAULT_ADMIN_PASSWORD})
 
 
 class WorkflowTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.original_db = server.DB
-        server.DB = Path(self.temp.name) / 'testlab.sqlite3'
-        server.LOGIN_FAILURES.clear()
-        server.init_db()
+        self.original_db = database.DB
+        database.DB = Path(self.temp.name) / 'testlab.sqlite3'
+        security.LOGIN_FAILURES.clear()
+        database.init_db()
 
     def tearDown(self):
-        server.DB = self.original_db
+        database.DB = self.original_db
         self.temp.cleanup()
 
     def setup_team(self):
@@ -81,7 +82,7 @@ class WorkflowTest(unittest.TestCase):
             self.assertEqual(state['checks'][0]['status'], result)
             self.assertEqual(state['checks'][0]['actual'], 'Комментарий: '+result)
             self.assertEqual(state['metrics'][result], 1)
-            self.assertEqual(sum(state['metrics'][s] for s in server.STATUSES), 1)
+            self.assertEqual(sum(state['metrics'][s] for s in config.STATUSES), 1)
         self.assertEqual(member.call('logout', {})[0], 200)
         self.assertEqual(member.call('state')[0], 403)
         self.assertEqual(admin.call('state')[0], 200)
@@ -119,7 +120,7 @@ class WorkflowTest(unittest.TestCase):
         self.assertEqual(member.call(f'state?project={private}')[0], 403)
         self.assertEqual(member.call('checks/result', {'project_id': pid, 'check_id': check, 'status': 'passed'})[0], 400)
         self.assertEqual(member.call('state')[1]['checks'], [])
-        with server.connect() as db:
+        with database.connect() as db:
             db.execute("UPDATE users SET role='admin' WHERE email='user@example.test'")
         self.assertEqual(member.call(f'state?project={private}')[0], 403)
         self.assertEqual(member.call('projects', {'name': 'Личная группа второго администратора'})[0], 200)
@@ -129,22 +130,22 @@ class WorkflowTest(unittest.TestCase):
         admin, member, pid = self.setup_team()
         cid = member.call('checks', {'project_id': pid, 'title': 'Сохранённая проверка',
                                     'steps': 'Шаги', 'expected': 'Ожидание'})[1]['id']
-        db = server.connect()
+        db = database.connect()
         before = {table: db.execute('SELECT COUNT(*) FROM '+table).fetchone()[0]
                   for table in ['users', 'projects', 'project_members', 'cases', 'runs']}
         new_hash = bcrypt.hashpw(b'Changed12345!', bcrypt.gensalt())
-        db.execute('UPDATE users SET password=? WHERE email=?', (new_hash, server.DEFAULT_ADMIN_EMAIL))
+        db.execute('UPDATE users SET password=? WHERE email=?', (new_hash, config.DEFAULT_ADMIN_EMAIL))
         db.close()
-        server.init_db()
-        db = server.connect()
+        database.init_db()
+        db = database.connect()
         after = {table: db.execute('SELECT COUNT(*) FROM '+table).fetchone()[0] for table in before}
         self.assertEqual(before, after)
-        self.assertEqual(db.execute('SELECT password FROM users WHERE email=?', (server.DEFAULT_ADMIN_EMAIL,)).fetchone()[0], new_hash)
+        self.assertEqual(db.execute('SELECT password FROM users WHERE email=?', (config.DEFAULT_ADMIN_EMAIL,)).fetchone()[0], new_hash)
         self.assertEqual(db.execute('SELECT title FROM cases WHERE id=?', (cid,)).fetchone()[0], 'Сохранённая проверка')
         db.close()
 
     def test_upgrade_preserves_owners_members_and_legacy_data(self):
-        old = sqlite3.connect(server.DB)
+        old = sqlite3.connect(database.DB)
         old.executescript('''
             DELETE FROM app_settings WHERE key='simple_roles';
             DELETE FROM app_settings WHERE key='account_roles_v2';
@@ -162,8 +163,8 @@ class WorkflowTest(unittest.TestCase):
                 VALUES(100,'failed','Ошибка',101,'2026-01-01');
         ''')
         old.close()
-        server.init_db()
-        db = server.connect()
+        database.init_db()
+        db = database.connect()
         self.assertEqual(db.execute('SELECT role FROM users WHERE id=100').fetchone()[0], 'user')
         self.assertEqual(db.execute('SELECT role FROM project_members WHERE user_id=100').fetchone()[0], 'member')
         self.assertEqual(db.execute('SELECT role FROM project_members WHERE user_id=101').fetchone()[0], 'member')
@@ -175,25 +176,25 @@ class WorkflowTest(unittest.TestCase):
 
     def test_accidental_legacy_admin_is_corrected_in_existing_session(self):
         admin, member, pid = self.setup_team()
-        with server.connect() as db:
+        with database.connect() as db:
             uid = db.execute("SELECT id FROM users WHERE email='user@example.test'").fetchone()[0]
             db.execute("UPDATE users SET role='admin' WHERE id=?", (uid,))
             group = db.execute('INSERT INTO projects(name,created_by,created_at) VALUES(?,?,?)',
-                               ('Старая группа', uid, server.now())).lastrowid
-            db.execute('INSERT INTO project_members VALUES(?,?,?,?)', (group, uid, 'admin', server.now()))
+                               ('Старая группа', uid, database.now())).lastrowid
+            db.execute('INSERT INTO project_members VALUES(?,?,?,?)', (group, uid, 'admin', database.now()))
             db.execute("DELETE FROM app_settings WHERE key='account_roles_v2'")
         self.assertEqual(member.call('me')[1]['user']['role'], 'admin')
-        server.init_db()
+        database.init_db()
         state = member.call(f'state?project={group}')[1]
         self.assertEqual(state['user']['role'], 'user')
         self.assertEqual(state['project_role'], 'member')
         self.assertEqual(next(u['role'] for u in state['users'] if u['id'] == uid), 'member')
         self.assertEqual(member.call('projects', {'name': 'Своя группа'})[0], 200)
         self.assertEqual(member.call('me')[1]['user']['role'], 'user')
-        self.assertEqual(member.call('members', {'project_id': group, 'email': server.DEFAULT_ADMIN_EMAIL})[0], 400)
+        self.assertEqual(member.call('members', {'project_id': group, 'email': config.DEFAULT_ADMIN_EMAIL})[0], 400)
         self.assertEqual(admin.call(f'state?project={group}')[1]['project_role'], 'admin')
         # A stale legacy membership must never grant account-level admin rights.
-        with server.connect() as db:
+        with database.connect() as db:
             db.execute("UPDATE project_members SET role='admin' WHERE user_id=?", (uid,))
         self.assertEqual(member.call(f'state?project={group}')[1]['project_role'], 'member')
         self.assertEqual(member.call('members', {'project_id': group, 'email': 'missing@example.test'})[0], 400)

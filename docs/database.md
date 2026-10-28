@@ -1,6 +1,6 @@
 # База данных
 
-Структура новой базы задаётся в [schema.sql](../schema.sql). `server.py` читает этот файл при запуске. Рабочая база — `testlab.sqlite3`, либо путь из `TESTLAB_DB`.
+Структура новой базы задаётся в [sql/schema.sql](../sql/schema.sql). `testlab/database.py` читает этот файл при запуске. Рабочая база — `testlab.sqlite3`, либо путь из `TESTLAB_DB`.
 
 ## Связи
 

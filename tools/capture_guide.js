@@ -203,9 +203,13 @@ async function main() {
   await snapshot('06-overview-user.png');
   await page('team');
   await snapshot('14-team-user.png');
-  const built=spawnSync('python3',[path.join(__dirname,'build_guide.py')],{stdio:'inherit'});
-  if(built.status!==0)throw new Error('Снимки сохранены, но сборка PDF завершилась с ошибкой');
-  console.log('Готово: все 14 снимков включены в руководство. Рабочие аккаунты и данные не изменялись.');
+  if (!process.env.TESTLAB_CAPTURE_ONLY) {
+    const built=spawnSync('python3',[path.join(__dirname,'build_guide.py')],{stdio:'inherit'});
+    if(built.status!==0)throw new Error('Снимки сохранены, но сборка PDF завершилась с ошибкой');
+  }
+  console.log(process.env.TESTLAB_CAPTURE_ONLY
+    ? 'Проверка 14 экранов завершена. Рабочие данные не изменялись.'
+    : 'Готово: все 14 снимков включены в руководство. Рабочие аккаунты и данные не изменялись.');
 }
 
 main().catch(error=>{

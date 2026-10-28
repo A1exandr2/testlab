@@ -4,7 +4,7 @@
 
 ## Быстрый запуск
 
-Проверено на Python 3.13. Для приложения нужен Python с модулем `bcrypt`; Node.js требуется только для JS-тестов и автоматической съёмки экранов.
+Проверено на Python 3.14. Для приложения нужен Python с модулем `bcrypt`; Node.js требуется только для JS-тестов и автоматической съёмки экранов.
 
 ```bash
 python3 -m venv .venv
@@ -45,21 +45,49 @@ python server.py
 | [Сопровождение](docs/maintenance.md) | Резервная копия, ограничения и передача проекта. |
 | [Сборка PDF](docs/user-guide/README.md) | Руководство с 14 скриншотами и его генерация. |
 
-## Стек и файлы
+## Структура проекта
 
-- Сервер: Python и стандартный `http.server`.
-- База: SQLite; структура описана в [schema.sql](schema.sql).
-- Интерфейс: HTML, CSS, JavaScript без сборки и внешних библиотек.
-- Хеширование паролей: `bcrypt`.
+`server.py` запускает приложение. Код разделён по назначению:
 
-[server.py](server.py) обслуживает страницу и API; [app.js](app.js) строит интерфейс; [style.css](style.css) задаёт оформление.
+```text
+testlab/
+  config.py       пути и общие значения
+  database.py     подключение и начало работы с базой
+  migrations.py   перенос данных предыдущей версии
+  security.py     регистрация, вход, сеансы
+  service.py      группы, проверки и результаты
+  validation.py   проверка полей формы
+  web.py          HTTP и маршруты
+static/
+  index.html      начальная страница
+  favicon.svg     значок приложения
+  js/
+    state.js      состояние и общие функции
+    api.js        запросы к серверу
+    views.js      разделы, списки и диаграмма
+    forms.js      вход и формы
+    app.js        события и обновление данных
+  css/
+    base.css      шрифты и общие правила
+    layout.css    расположение основных блоков
+    components.css кнопки, таблицы и формы
+    responsive.css правила для разных экранов
+sql/schema.sql    семь таблиц и индексы
+tests/            проверки Python и JavaScript
+tools/            подготовка данных и съёмка экранов
+coursework/       Word-отчёт, SQL заполнения и учебная база
+```
+
+Сервер использует Python, стандартные `http.server` и `sqlite3`, а также `bcrypt` для паролей. Интерфейс работает без сборщика и внешних JavaScript-библиотек.
+
+Учебная база создаётся командой `python tools/create_demo.py`. Если готовый файл уже есть, повторять заполнение не нужно. Для нового файла: `python tools/create_demo.py --db /tmp/testlab-demo.sqlite3`.
 
 ## Проверка
 
 ```bash
-python -m unittest -v test_workflow.py
-node --check app.js
-node test_ui.js
+python -m unittest discover -s tests -v
+node --check static/js/app.js
+node tests/test_ui.js
 ```
 
 Тесты используют временные базы. Рабочие аккаунты и результаты не изменяются. Существующая база, резервные копии и локальные настройки исключены из Git; после клонирования новая база создаётся автоматически.
