@@ -1,0 +1,22 @@
+# В контекст сборки входят только необходимые исходники.
+**
+!Dockerfile
+!requirements-docker.txt
+!server.py
+!testlab/
+!testlab/**
+!static/
+!static/**
+!sql/
+!sql/**
+!ops/
+!ops/**
+!tests/
+!tests/test_*.py
+!tests/test_ui.js
+!coursework/
+!coursework/demo.sql
+!tools/
+!tools/create_demo.py
+**/__pycache__/
+**/*.pyc

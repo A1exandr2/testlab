@@ -1,5 +1,6 @@
 # Документация ТестЛаб
 
+- [Docker, GraalPy и Makefile](docker.md)
 - [Запуск](setup.md)
 - [Руководство пользователя](user-guide.md)
 - [Архитектура и файлы](architecture.md)

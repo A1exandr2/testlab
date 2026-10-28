@@ -1,0 +1,54 @@
+name: ${PROJECT:-testlab}
+
+services:
+  app:
+    image: ${PROJECT:-testlab}:${RUNTIME:-cpython}
+    build: &app-build
+      context: .
+      target: ${RUNTIME:-cpython}
+      network: ${BUILD_NETWORK:-default}
+      args:
+        - HTTP_PROXY
+        - HTTPS_PROXY
+        - NO_PROXY
+    ports:
+      - "127.0.0.1:${PORT:-8765}:8765"
+    volumes:
+      - data:/data
+    environment:
+      TESTLAB_DB: /data/testlab.sqlite3
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${MEMORY_LIMIT:-512m}
+    cpus: ${CPU_LIMIT:-1.0}
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  tests:
+    profiles: [tools]
+    image: ${PROJECT:-testlab}:${RUNTIME:-cpython}-tests
+    build:
+      <<: *app-build
+      target: ${RUNTIME:-cpython}-tests
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m
+
+  tests-js:
+    profiles: [tools]
+    image: ${PROJECT:-testlab}:js-tests
+    build:
+      context: .
+      target: js-tests
+
+volumes:
+  data:
